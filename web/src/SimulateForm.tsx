@@ -5,6 +5,7 @@ import React, { useCallback, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Routes } from 'routes';
 import ModelUpload, { BodyModel } from './ModelUpload';
+import { API_URL } from 'api';
 
 type FormValue = number | '';
 interface FormData {
@@ -60,7 +61,7 @@ const SimulateForm: React.FC = () => {
     async (e: React.FormEvent) => {
       e.preventDefault();
       try {
-        const response = await fetch('http://localhost:8000/simulation', {
+        const response = await fetch(`${API_URL}/simulation`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

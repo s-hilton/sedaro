@@ -1,5 +1,6 @@
 import { Button, Flex, Text, TextField } from '@radix-ui/themes';
 import React, { useCallback, useId, useRef, useState } from 'react';
+import { API_URL } from 'api';
 
 type Vector = { x: number; y: number; z: number };
 type FormValue = number | '';
@@ -49,7 +50,7 @@ const ModelUpload: React.FC<ModelUploadProps> = ({ bodyName, mass, value, onChan
       try {
         const body = new FormData();
         body.append('file', file);
-        const response = await fetch('http://localhost:8000/models', { method: 'POST', body });
+        const response = await fetch(`${API_URL}/models`, { method: 'POST', body });
         const result = await response.json();
         if (!response.ok) {
           throw new Error(result.error ?? 'Upload failed.');
