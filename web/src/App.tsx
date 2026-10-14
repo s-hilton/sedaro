@@ -5,18 +5,28 @@ import { Link } from 'react-router-dom';
 import { Routes } from 'routes';
 
 // Input data from the simulation
-type AgentData = Record<string, Record<string, number>>;
+type Vector = { x: number; y: number; z: number };
+interface AgentData {
+  time: number;
+  position: Vector;
+  velocity: Vector;
+  angularVelocity: Vector;
+  // Present in the initial state of bodies simulated from an uploaded CAD model.
+  model?: { filename: string; size: number; dimensions: Vector };
+}
 type DataFrame = Record<string, AgentData>;
 type DataPoint = [number, number, DataFrame];
 
 // Output data to the plot
 type PlottedAgentData = Record<string, number[]>;
 type PlottedFrame = Record<string, PlottedAgentData>;
+type PlottedSeries = { name: string; x: number[]; y: number[]; type: 'scatter'; mode: 'lines' };
 
 const App = () => {
   // Store plot data in state.
   const [positionData, setPositionData] = useState<PlottedAgentData[]>([]);
   const [velocityData, setVelocityData] = useState<PlottedAgentData[]>([]);
+  const [angularVelocityData, setAngularVelocityData] = useState<PlottedSeries[]>([]);
   const [initialState, setInitialState] = useState<DataFrame>({});
 
   useEffect(() => {
@@ -39,7 +49,8 @@ const App = () => {
 
         setInitialState(data[0][2]);
 
-        const baseData = () => ({
+        const baseData = (name: string) => ({
+          name,
           x: [],
           y: [],
           z: [],
@@ -55,12 +66,12 @@ const App = () => {
                 continue;
               }
               let {position, velocity} = val;
-              updatedPositionData[agentId] = updatedPositionData[agentId] || baseData();
+              updatedPositionData[agentId] = updatedPositionData[agentId] || baseData(agentId);
               updatedPositionData[agentId].x.push(position.x);
               updatedPositionData[agentId].y.push(position.y);
               updatedPositionData[agentId].z.push(position.z);
 
-              updatedVelocityData[agentId] = updatedVelocityData[agentId] || baseData();
+              updatedVelocityData[agentId] = updatedVelocityData[agentId] || baseData(agentId);
               updatedVelocityData[agentId].x.push(velocity.x);
               updatedVelocityData[agentId].y.push(velocity.y);
               updatedVelocityData[agentId].z.push(velocity.z);
@@ -68,6 +79,22 @@ const App = () => {
         });
         setPositionData(Object.values(updatedPositionData));
         setVelocityData(Object.values(updatedVelocityData));
+
+        // Rotation over time for bodies simulated as rigid bodies (those with a CAD model).
+        const rigidBodies = Object.keys(data[0][2]).filter((agentId) => data[0][2][agentId].model);
+        const updatedAngularVelocityData: PlottedSeries[] = rigidBodies.flatMap((agentId) =>
+          (['x', 'y', 'z'] as const).map((axis) => {
+            const states = [data[0][2][agentId], ...data.slice(1).flatMap(([, , frame]) => (frame[agentId] ? [frame[agentId]] : []))];
+            return {
+              name: `${agentId} ω${axis}`,
+              x: states.map((state) => state.time),
+              y: states.map((state) => state.angularVelocity[axis]),
+              type: 'scatter',
+              mode: 'lines',
+            };
+          })
+        );
+        setAngularVelocityData(updatedAngularVelocityData);
         console.log('Set plot data!');
       } catch (error) {
         console.error('Error fetching data:', error);
@@ -106,6 +133,10 @@ const App = () => {
                 xaxis: { title: 'X' },
                 yaxis: { title: 'Y' },
                 zaxis: { title: 'Z' },
+                // Fixed proportions, so a nearly flat orbit with a little out-of-plane motion isn't
+                // stretched into a line by z being scaled up to match x and y.
+                aspectmode: 'manual',
+                aspectratio: { x: 1, y: 1, z: 0.4 },
               },
               autosize: true,
               dragmode: 'turntable',
@@ -124,6 +155,10 @@ const App = () => {
                 xaxis: { title: 'X' },
                 yaxis: { title: 'Y' },
                 zaxis: { title: 'Z' },
+                // Fixed proportions, so a nearly flat orbit with a little out-of-plane motion isn't
+                // stretched into a line by z being scaled up to match x and y.
+                aspectmode: 'manual',
+                aspectratio: { x: 1, y: 1, z: 0.4 },
               },
               autosize: true,
               dragmode: 'turntable',
@@ -134,6 +169,19 @@ const App = () => {
             }}
           />
         </Flex>
+        {angularVelocityData.length > 0 && (
+          <Plot
+            style={{ width: '90%', height: '400px', margin: '5px' }}
+            data={angularVelocityData}
+            layout={{
+              title: 'Angular velocity (body frame)',
+              xaxis: { title: 'Time' },
+              yaxis: { title: 'Radians per time unit' },
+              autosize: true,
+            }}
+            useResizeHandler
+          />
+        )}
         <Flex justify="center" width="100%" m="4">
           <Table.Root
             style={{
@@ -146,12 +194,13 @@ const App = () => {
                 <Table.ColumnHeaderCell>Agent</Table.ColumnHeaderCell>
                 <Table.ColumnHeaderCell>Initial Position (x,y, z)</Table.ColumnHeaderCell>
                 <Table.ColumnHeaderCell>Initial Velocity (x,y,z)</Table.ColumnHeaderCell>
+                <Table.ColumnHeaderCell>CAD Model</Table.ColumnHeaderCell>
               </Table.Row>
             </Table.Header>
 
             <Table.Body>
               {Object.entries(initialState).flatMap(
-                  ([agentId, { position, velocity }]) => {
+                  ([agentId, { position, velocity, model }]) => {
                     if (position) {
                     return (
                 <Table.Row key={agentId}>
@@ -161,6 +210,13 @@ const App = () => {
                   </Table.Cell>
                   <Table.Cell>
                     ({velocity.x}, {velocity.y}, {velocity.z})
+                  </Table.Cell>
+                  <Table.Cell>
+                    {model
+                      ? `${model.filename}, ${[model.dimensions.x, model.dimensions.y, model.dimensions.z]
+                          .map((d) => Number(d.toPrecision(4)))
+                          .join(' × ')}`
+                      : 'None (point mass)'}
                   </Table.Cell>
                 </Table.Row>
                   );} else {
