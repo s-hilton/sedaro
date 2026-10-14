@@ -138,6 +138,22 @@ class SimulationTest(unittest.TestCase):
         np.testing.assert_array_equal(vector(states['Body1'][1]['velocity']), expected)
         self.assertEqual(states['Body1'][1]['attitude'], IDENTITY)
 
+    def test_bodies_flying_apart_keep_finite_steps(self):
+        # Body2 above escape speed: the bodies separate forever. Steps must stay finite (time once
+        # ran away to infinity here) and energy must stay conserved relative to the motion's scale.
+        init = copy.deepcopy(modsim.data)
+        init['Body2'].update(mass=0.0123, velocity={'x': 0, 'y': 0.3, 'z': 0})
+        pairs = lockstep(run(init, 500))
+        self.assertEqual(len(pairs), 501)
+        self.assertTrue(all(math.isfinite(s2['time']) for _, s2 in pairs))
+        kinetic = lambda s: 0.5 * s['mass'] * vector(s['velocity']) @ vector(s['velocity'])
+        scale = kinetic(pairs[0][0]) + kinetic(pairs[0][1])
+        E0 = totals(*pairs[0])[0]
+        for s1, s2 in pairs:
+            self.assertLess(abs(totals(s1, s2)[0] - E0) / scale, 1e-2)
+        separation = np.linalg.norm(vector(pairs[-1][0]['position']) - vector(pairs[-1][1]['position']))
+        self.assertGreater(separation, 1000)
+
     def test_extended_bodies_conserve_energy_and_angular_momentum(self):
         init = copy.deepcopy(modsim.data)
         init['Body1'].update(inertia=box_inertia(1, 15, 10, 5))

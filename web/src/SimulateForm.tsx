@@ -57,9 +57,29 @@ const SimulateForm: React.FC = () => {
     setFormData((prev) => _.set({ ...prev }, name, newValue));
   }, []);
 
+  const [submitting, setSubmitting] = useState(false);
+
+  // The form blocks submission while any field is empty or invalid, without saying so. Name the
+  // fields instead, so a click on Submit never silently does nothing.
+  const reportInvalidFields = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
+    const form = e.currentTarget.form;
+    if (!form || form.checkValidity()) return;
+    const names = Array.from(form.querySelectorAll<HTMLInputElement>('input:invalid')).map((input) => {
+      // Model inputs carry an aria-label that already names the body; the plain fields are labelled
+      // like "Mass", so prefix the body from their name ("Body1.mass").
+      const ariaLabel = input.getAttribute('aria-label');
+      if (ariaLabel) return ariaLabel;
+      const label = form.querySelector(`label[for="${CSS.escape(input.id)}"]`)?.textContent ?? input.name;
+      return `${input.name.split('.')[0]} ${label}`;
+    });
+    setSubmitError(`Fix these fields before submitting: ${names.join(', ')}.`);
+  }, []);
+
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
+      setSubmitError(null);
+      setSubmitting(true);
       try {
         const response = await fetch(`${API_URL}/simulation`, {
           method: 'POST',
@@ -83,13 +103,19 @@ const SimulateForm: React.FC = () => {
           ),
         });
         if (!response.ok) {
+          // The API explains its own errors; anything else (e.g. the dev server could not reach the
+          // backend) only has a status code.
           const result = await response.json().catch(() => ({}));
-          throw new Error(result.error ?? 'Network response was not ok');
+          throw new Error(
+            result.error ?? `The server returned an error (HTTP ${response.status}). Check that the backend is running and see its logs.`
+          );
         }
         navigate(Routes.SIMULATION);
       } catch (error) {
         console.error('Error:', error);
         setSubmitError(error instanceof Error ? error.message : 'Simulation failed.');
+      } finally {
+        setSubmitting(false);
       }
     },
     [formData, models]
@@ -290,7 +316,9 @@ const SimulateForm: React.FC = () => {
             />
           </FormField>
           <Flex direction="column" align="center" gap="2" m="5">
-            <Button type="submit">Submit</Button>
+            <Button type="submit" disabled={submitting} onClick={reportInvalidFields}>
+              {submitting ? 'Running simulation…' : 'Submit'}
+            </Button>
             {submitError && (
               <Text size="2" color="red" role="alert">
                 {submitError}
