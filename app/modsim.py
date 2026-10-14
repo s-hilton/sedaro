@@ -57,10 +57,14 @@ agents = {
     'Body1': [
         {
             'consumed': '''(
+                prev!(timeStep),
+                prev!(position),
                 prev!(velocity),
+                agent!(Body2).position,
+                agent!(Body2).mass,
             )''',
             'produced': '''velocity''',
-            'function': identity,
+            'function': propagate_velocity,
         },
         {
             'consumed': '''(
