@@ -70,7 +70,13 @@ const SimulateForm: React.FC = () => {
             _.mapValues(formData, (body, name) => {
               const attached = models[name as BodyName];
               return attached
-                ? { ...body, modelId: attached.model.id, size: attached.size, angularVelocity: attached.angularVelocity }
+                ? {
+                    ...body,
+                    modelId: attached.model.id,
+                    size: attached.size,
+                    angularVelocity: attached.angularVelocity,
+                    orientation: attached.orientation,
+                  }
                 : body;
             })
           ),

@@ -20,6 +20,7 @@ export interface BodyModel {
   model: UploadedModel;
   size: FormValue; // longest dimension, in simulation length units
   angularVelocity: { x: FormValue; y: FormValue; z: FormValue }; // body frame, radians per time unit
+  orientation: { yaw: FormValue; pitch: FormValue; roll: FormValue }; // degrees, Z-Y-X order
 }
 
 interface ModelUploadProps {
@@ -55,7 +56,12 @@ const ModelUpload: React.FC<ModelUploadProps> = ({ bodyName, mass, value, onChan
         }
         const model = result as UploadedModel;
         // Start at the file's own size; the user rescales it to simulation units.
-        onChange({ model, size: longestDimension(model), angularVelocity: { x: 0, y: 0, z: 0 } });
+        onChange({
+          model,
+          size: longestDimension(model),
+          angularVelocity: { x: 0, y: 0, z: 0 },
+          orientation: { yaw: 0, pitch: 0, roll: 0 },
+        });
       } catch (err) {
         onChange(null);
         setError(err instanceof Error ? err.message : 'Upload failed.');
@@ -125,6 +131,27 @@ const ModelUpload: React.FC<ModelUploadProps> = ({ bodyName, mass, value, onChan
               {formatNumber(scale * value.model.centerOfMass.z)}) from the model origin.
             </Text>
           )}
+          <Text size="2" id={`${inputId}-orientation`}>
+            Initial orientation (degrees)
+          </Text>
+          <Flex gap="2" role="group" aria-labelledby={`${inputId}-orientation`}>
+            {(['yaw', 'pitch', 'roll'] as const).map((angle) => (
+              <TextField.Root
+                key={angle}
+                type="number"
+                step="any"
+                required
+                aria-label={`${bodyName} initial ${angle} in degrees`}
+                value={value.orientation[angle]}
+                onChange={(e) => onChange({ ...value, orientation: { ...value.orientation, [angle]: parse(e.target.value) } })}
+              >
+                <TextField.Slot>{angle}</TextField.Slot>
+              </TextField.Root>
+            ))}
+          </Flex>
+          <Text size="1" color="gray">
+            Turns the model from the simulation axes: yaw about z, then pitch about the new y, then roll about the new x.
+          </Text>
           <Text size="2">Initial angular velocity (model axes, radians per time unit)</Text>
           <Flex gap="2">
             {(['x', 'y', 'z'] as const).map((axis) => (
@@ -142,8 +169,8 @@ const ModelUpload: React.FC<ModelUploadProps> = ({ bodyName, mass, value, onChan
             ))}
           </Flex>
           <Text size="1" color="gray">
-            {bodyName} is a uniform-density rigid body. The position below places the model's origin, with its axes along
-            the simulation axes; its shape affects its gravity and makes it rotate.
+            {bodyName} is a uniform-density rigid body. The position below places the model's origin; its shape affects its
+            gravity and makes it rotate.
           </Text>
           <Flex>
             <Button type="button" size="1" variant="soft" onClick={handleRemove}>

@@ -1,5 +1,6 @@
 # MODELING & SIMULATION
 
+import math
 from random import random
 
 import numpy as np
@@ -20,6 +21,22 @@ def rotation_matrix(attitude):
         [2 * (x * y + w * z), 1 - 2 * (x * x + z * z), 2 * (y * z - w * x)],
         [2 * (x * z - w * y), 2 * (y * z + w * x), 1 - 2 * (x * x + y * y)],
     ])
+
+def attitude_from_euler(yaw, pitch, roll):
+    """
+    Unit quaternion (body to inertial) for aerospace Z-Y-X Euler angles in degrees: rotate by `yaw`
+    about z, then by `pitch` about the new y axis, then by `roll` about the new x axis.
+    """
+    yaw, pitch, roll = (math.radians(a) / 2 for a in (yaw, pitch, roll))
+    cy, sy = math.cos(yaw), math.sin(yaw)
+    cp, sp = math.cos(pitch), math.sin(pitch)
+    cr, sr = math.cos(roll), math.sin(roll)
+    return {
+        'w': cy * cp * cr + sy * sp * sr,
+        'x': cy * cp * sr - sy * sp * cr,
+        'y': cy * sp * cr + sy * cp * sr,
+        'z': sy * cp * cr - cy * sp * sr,
+    }
 
 def inertial_inertia(inertia, attitude):
     """The body's inertia tensor about its center of mass, expressed in the inertial frame."""

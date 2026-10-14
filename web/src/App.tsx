@@ -4,23 +4,15 @@ import Plot from 'react-plotly.js';
 import { Link } from 'react-router-dom';
 import { Routes } from 'routes';
 
-// Input data from the simulation
-type Vector = { x: number; y: number; z: number };
-interface AgentData {
-  time: number;
-  position: Vector;
-  velocity: Vector;
-  angularVelocity: Vector;
-  // Present in the initial state of bodies simulated from an uploaded CAD model.
-  model?: { filename: string; size: number; dimensions: Vector };
-}
-type DataFrame = Record<string, AgentData>;
-type DataPoint = [number, number, DataFrame];
+import { DataFrame, DataPoint } from 'simulation';
+import OrbitViewer from './OrbitViewer';
 
 // Output data to the plot
 type PlottedAgentData = Record<string, number[]>;
 type PlottedFrame = Record<string, PlottedAgentData>;
 type PlottedSeries = { name: string; x: number[]; y: number[]; type: 'scatter'; mode: 'lines' };
+
+const formatNumber = (n: number) => Number(n.toPrecision(6));
 
 const App = () => {
   // Store plot data in state.
@@ -28,6 +20,7 @@ const App = () => {
   const [velocityData, setVelocityData] = useState<PlottedAgentData[]>([]);
   const [angularVelocityData, setAngularVelocityData] = useState<PlottedSeries[]>([]);
   const [initialState, setInitialState] = useState<DataFrame>({});
+  const [simulation, setSimulation] = useState<DataPoint[] | null>(null);
 
   useEffect(() => {
     // fetch plot data when the component mounts
@@ -48,6 +41,7 @@ const App = () => {
         // console.log('Data:', data);
 
         setInitialState(data[0][2]);
+        setSimulation(data);
 
         const baseData = (name: string) => ({
           name,
@@ -123,6 +117,7 @@ const App = () => {
         </Heading>
         <Link to={Routes.FORM}>Define new simulation parameters</Link>
         <Separator size="4" my="5" />
+        {simulation && simulation.length > 1 && <OrbitViewer data={simulation} />}
         <Flex direction="row" width="100%" justify="center">
           <Plot
             style={{ width: '45%', height: '100%', margin: '5px' }}
@@ -206,16 +201,20 @@ const App = () => {
                 <Table.Row key={agentId}>
                   <Table.RowHeaderCell>{agentId}</Table.RowHeaderCell>
                   <Table.Cell>
-                    ({position.x}, {position.y}, {position.z})
+                    ({formatNumber(position.x)}, {formatNumber(position.y)}, {formatNumber(position.z)})
                   </Table.Cell>
                   <Table.Cell>
-                    ({velocity.x}, {velocity.y}, {velocity.z})
+                    ({formatNumber(velocity.x)}, {formatNumber(velocity.y)}, {formatNumber(velocity.z)})
                   </Table.Cell>
                   <Table.Cell>
                     {model
                       ? `${model.filename}, ${[model.dimensions.x, model.dimensions.y, model.dimensions.z]
                           .map((d) => Number(d.toPrecision(4)))
-                          .join(' × ')}`
+                          .join(' × ')}${
+                          model.orientation
+                            ? `; yaw ${model.orientation.yaw}°, pitch ${model.orientation.pitch}°, roll ${model.orientation.roll}°`
+                            : ''
+                        }`
                       : 'None (point mass)'}
                   </Table.Cell>
                 </Table.Row>
