@@ -146,12 +146,13 @@ const App = () => {
                 <Table.ColumnHeaderCell>Agent</Table.ColumnHeaderCell>
                 <Table.ColumnHeaderCell>Initial Position (x,y, z)</Table.ColumnHeaderCell>
                 <Table.ColumnHeaderCell>Initial Velocity (x,y,z)</Table.ColumnHeaderCell>
+                <Table.ColumnHeaderCell>CAD Model</Table.ColumnHeaderCell>
               </Table.Row>
             </Table.Header>
 
             <Table.Body>
               {Object.entries(initialState).flatMap(
-                  ([agentId, { position, velocity }]) => {
+                  ([agentId, { position, velocity, model }]) => {
                     if (position) {
                     return (
                 <Table.Row key={agentId}>
@@ -162,6 +163,7 @@ const App = () => {
                   <Table.Cell>
                     ({velocity.x}, {velocity.y}, {velocity.z})
                   </Table.Cell>
+                  <Table.Cell>{model ? model.filename : 'None (point mass)'}</Table.Cell>
                 </Table.Row>
                   );} else {
                     return null;

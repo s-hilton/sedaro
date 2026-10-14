@@ -92,9 +92,11 @@ Here are some suggestions to get you thinking:
 ├── README.md                 # This README
 ├── app                       # The backend (Python)
 │   ├── app.py                # Setup + API handling
+│   ├── mesh.py               # STL parsing + center of mass of uploaded CAD models
 │   ├── modsim.py             # Modeling and simulation functions
 │   ├── simulator.py          # Core simulation runtime
-│   └── store.py              # In-memory stream data structure
+│   ├── store.py              # In-memory stream data structure
+│   └── test_mesh.py          # Tests for mesh.py (`python3 -m unittest test_mesh`)
 ├── queries                   # Query-parsing library (Rust)
 │   └── src
 │       ├── grammar.lalrpop   # The syntax definition
@@ -103,6 +105,7 @@ Here are some suggestions to get you thinking:
 └── web                       # The frontend (React/TypeScript)
     └── src
         ├── App.tsx           # View simulation results
+        ├── ModelUpload.tsx   # Attach an STL model to a body
         └── SimulateForm.tsx  # Define a simulation
 ```
 

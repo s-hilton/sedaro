@@ -4,6 +4,7 @@ import _ from 'lodash';
 import React, { useCallback, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Routes } from 'routes';
+import ModelUpload, { UploadedModel } from './ModelUpload';
 
 type FormValue = number | '';
 interface FormData {
@@ -35,8 +36,13 @@ interface FormData {
   };
 }
 
+type BodyName = keyof FormData;
+
 const SimulateForm: React.FC = () => {
   const navigate = useNavigate();
+  const [models, setModels] = useState<Record<BodyName, UploadedModel | null>>({ Body1: null, Body2: null });
+  const setBody1Model = useCallback((model: UploadedModel | null) => setModels((prev) => ({ ...prev, Body1: model })), []);
+  const setBody2Model = useCallback((model: UploadedModel | null) => setModels((prev) => ({ ...prev, Body2: model })), []);
 
   const [formData, setFormData] = useState<FormData>({
     Body1: { position: {x: -0.73, y: 0, z: 0}, velocity: {x: 0, y: -0.0015, z: 0}, mass: 1 },
@@ -58,7 +64,13 @@ const SimulateForm: React.FC = () => {
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify(formData),
+          // A body with an uploaded model is simulated at the model's center of mass.
+          body: JSON.stringify(
+            _.mapValues(formData, (body, name) => {
+              const model = models[name as BodyName];
+              return model ? { ...body, modelId: model.id } : body;
+            })
+          ),
         });
         if (!response.ok) {
           throw new Error('Network response was not ok');
@@ -68,7 +80,7 @@ const SimulateForm: React.FC = () => {
         console.error('Error:', error);
       }
     },
-    [formData]
+    [formData, models]
   );
 
   return (
@@ -100,9 +112,10 @@ const SimulateForm: React.FC = () => {
           <Heading as="h3" size="3" weight="bold">
             Body1
           </Heading>
+          <ModelUpload bodyName="Body1" mass={formData.Body1.mass} model={models.Body1} onChange={setBody1Model} />
           {/* Form: https://www.radix-ui.com/primitives/docs/components/form */}
           <FormField name="Body1.position.x">
-            <FormLabel htmlFor="Body1.position.x">Initial X-position</FormLabel>
+            <FormLabel htmlFor="Body1.position.x">Initial X-position{models.Body1 && ' of model origin'}</FormLabel>
             <TextField.Root
               type="number"
               id="Body1.position.x"
@@ -113,7 +126,7 @@ const SimulateForm: React.FC = () => {
             />
           </FormField>
           <FormField name="Body1.position.y">
-            <FormLabel htmlFor="Body1.position.y">Initial Y-position</FormLabel>
+            <FormLabel htmlFor="Body1.position.y">Initial Y-position{models.Body1 && ' of model origin'}</FormLabel>
             <TextField.Root
               type="number"
               id="Body1.position.y"
@@ -124,7 +137,7 @@ const SimulateForm: React.FC = () => {
             />
           </FormField>
           <FormField name="Body1.position.z">
-            <FormLabel htmlFor="Body1.position.z">Initial Z-position</FormLabel>
+            <FormLabel htmlFor="Body1.position.z">Initial Z-position{models.Body1 && ' of model origin'}</FormLabel>
             <TextField.Root
               type="number"
               id="Body1.position.z"
@@ -186,8 +199,9 @@ const SimulateForm: React.FC = () => {
           <Heading as="h3" size="3" weight="bold" mt="4">
             Body2
           </Heading>
+          <ModelUpload bodyName="Body2" mass={formData.Body2.mass} model={models.Body2} onChange={setBody2Model} />
           <FormField name="Body2.position.x">
-            <FormLabel htmlFor="Body2.position.x">Initial X-position</FormLabel>
+            <FormLabel htmlFor="Body2.position.x">Initial X-position{models.Body2 && ' of model origin'}</FormLabel>
             <TextField.Root
               type="number"
               id="Body2.position.x"
@@ -198,7 +212,7 @@ const SimulateForm: React.FC = () => {
             />
           </FormField>
           <FormField name="Body2.position.y">
-            <FormLabel htmlFor="Body2.position.y">Initial Y-position</FormLabel>
+            <FormLabel htmlFor="Body2.position.y">Initial Y-position{models.Body2 && ' of model origin'}</FormLabel>
             <TextField.Root
               type="number"
               id="Body2.position.y"
@@ -209,7 +223,7 @@ const SimulateForm: React.FC = () => {
             />
           </FormField>
           <FormField name="Body2.position.z">
-            <FormLabel htmlFor="Body2.position.z">Initial Z-position</FormLabel>
+            <FormLabel htmlFor="Body2.position.z">Initial Z-position{models.Body2 && ' of model origin'}</FormLabel>
             <TextField.Root
               type="number"
               id="Body2.position.z"
