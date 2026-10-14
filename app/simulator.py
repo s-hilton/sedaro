@@ -3,6 +3,7 @@
 from functools import reduce
 from operator import __or__
 import subprocess
+import sys
 import json
 
 from modsim import agents
@@ -41,9 +42,13 @@ class Simulator:
     def __init__(self, store: QRangeStore, init: dict):
         # NOTE: Creating a Simulator object does all the simulation "building"
         self.store = store
-        store[-999999999, 0] = init
         self.init = init
         self.times = {agentId: state["time"] for agentId, state in init.items()}
+        start_times = set(self.times.values())
+        if len(start_times) != 1:
+            raise ValueError(f"All agents must start at the same time, got {self.times}")
+        # The initial state is current at the start time, and the range begins below any valid time.
+        store[-sys.float_info.max, start_times.pop()] = init
         self.sim_graph = {}
         for (agentId, sms) in agents.items():
             agent = []
@@ -55,8 +60,9 @@ class Simulator:
             self.sim_graph[agentId] = agent
 
     def read(self, t):
+        """Read the state of every agent at exactly time `t`."""
         try:
-            data = self.store[t]
+            data = self.store.ending_at_or_after(t)
         except IndexError:
             data = []
         return reduce(__or__, data, {}) # combine all data into one dictionary
@@ -155,12 +161,23 @@ class Simulator:
                 raise Exception(f"Tuple production not yet implemented")
 
     def simulate(self, iterations: int = 500):
-        """Simulate the universe for a given number of iterations."""
-        for _ in range(iterations):
-            for agentId in self.init:
-                t = self.times[agentId]
-                universe = self.read(t - 0.001)
-                if set(universe) == set(self.init):
-                    newState = self.step(agentId, universe)
-                    self.store[t, newState[agentId]["time"]] = newState
-                    self.times[agentId] = newState[agentId]["time"]
+        """
+        Simulate the universe for `iterations * len(agents)` agent steps.
+
+        Each step advances the agent that is furthest behind in time (ties go in `init` order), so
+        every other agent has already reached the stepping agent's time and its state there is
+        defined. Agents with equal timesteps therefore take `iterations` steps each in lockstep.
+        """
+        for _ in range(iterations * len(self.init)):
+            agentId = min(self.init, key=self.times.__getitem__)
+            t = self.times[agentId]
+            universe = self.read(t)
+            missing = set(self.init) - set(universe)
+            if missing:
+                raise Exception(f"Cannot step agent {agentId} at time {t}: no state for {sorted(missing)} at that time")
+            newState = self.step(agentId, universe)
+            newTime = newState[agentId]["time"]
+            if not newTime > t:
+                raise Exception(f"Agent {agentId} did not advance in time: stepped from {t} to {newTime}")
+            self.store[t, newTime] = newState
+            self.times[agentId] = newTime
