@@ -33,9 +33,20 @@ def propagate_mass(mass):
 def identity(arg):
     return arg
 
-def timestep_manager(velocity):
-    """Compute the length of the next simulation timeStep for the agent"""
-    return 100
+# Fraction of the two-body dynamical time to advance per step (~2*pi/ETA steps per circular orbit).
+TIMESTEP_FRACTION = 0.02
+
+def timestep_manager(position, mass, other_position, m_other):
+    """Compute the length of this simulation step from the state at the start of the step.
+
+    The step is a fixed fraction of the two-body dynamical time sqrt(r^3 / (m + m_other)), so it
+    shrinks as the bodies approach (where the force changes fastest) and scales with the system.
+    It is symmetric in the two bodies, so both agents choose the same step.
+    """
+    r_self = np.array([position['x'], position['y'], position['z']])
+    r_other = np.array([other_position['x'], other_position['y'], other_position['z']])
+    r = np.linalg.norm(r_self - r_other)
+    return TIMESTEP_FRACTION * np.sqrt(r**3 / (mass + m_other))
 
 def time_manager(time, timeStep):
     """Compute the time for the next simulation step for the agent"""
@@ -57,7 +68,7 @@ agents = {
     'Body1': [
         {
             'consumed': '''(
-                prev!(timeStep),
+                timeStep,
                 prev!(position),
                 prev!(velocity),
                 agent!(Body2).position,
@@ -68,7 +79,7 @@ agents = {
         },
         {
             'consumed': '''(
-                prev!(timeStep),
+                timeStep,
                 prev!(position),
                 velocity,
             )''',
@@ -92,7 +103,10 @@ agents = {
         },
         {
             'consumed': '''(
-                velocity,
+                prev!(position),
+                prev!(mass),
+                agent!(Body2).position,
+                agent!(Body2).mass,
             )''',
             'produced': '''timeStep''',
             'function': timestep_manager,
@@ -101,7 +115,7 @@ agents = {
     'Body2': [
         {
             'consumed': '''(
-                prev!(timeStep),
+                timeStep,
                 prev!(position),
                 prev!(velocity),
                 agent!(Body1).position,
@@ -112,7 +126,7 @@ agents = {
         },
         {
             'consumed': '''(
-                prev!(timeStep),
+                timeStep,
                 prev!(position),
                 velocity,
             )''',
@@ -136,7 +150,10 @@ agents = {
         },
         {
             'consumed': '''(
-                velocity,
+                prev!(position),
+                prev!(mass),
+                agent!(Body1).position,
+                agent!(Body1).mass,
             )''',
             'produced': '''timeStep''',
             'function': timestep_manager,
