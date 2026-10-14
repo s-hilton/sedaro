@@ -183,15 +183,25 @@ def simulate():
             return {"error": f"{key}'s orientation angles must be numbers."}, 400
         place_model(body, model, size, orientation)
 
+    # Gravity between two bodies at the same point is undefined.
+    positions = [tuple(body["position"][axis] for axis in "xyz") for body in init.values()]
+    if len(set(positions)) < len(positions):
+        return {"error": f"{' and '.join(init)} start at the same position; move one of them."}, 400
+
     # Create store and simulator
     t = datetime.now()
     store = QRangeStore()
     simulator = Simulator(store=store, init=init)
     logging.info(f"Time to Build: {datetime.now() - t}")
 
-    # Run simulation
+    # Run simulation. Initial conditions can make it fail (e.g. bodies placed on top of each other);
+    # report why to the client instead of an opaque server error.
     t = datetime.now()
-    simulator.simulate()
+    try:
+        simulator.simulate()
+    except Exception as e:
+        logging.exception("Simulation failed")
+        return {"error": f"Simulation failed: {e}"}, 422
     logging.info(f"Time to Simulate: {datetime.now() - t}")
 
     # Save data to database

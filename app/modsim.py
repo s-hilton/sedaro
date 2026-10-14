@@ -157,17 +157,25 @@ TIMESTEP_FRACTION = 0.02
 # Largest rotation of a spinning body per step, in radians.
 MAX_ROTATION_PER_STEP = 0.05
 
-def timestep_manager(position, mass, other_position, m_other, angular_velocity):
+def timestep_manager(position, velocity, mass, other_position, other_velocity, m_other, angular_velocity):
     """Compute the length of this simulation step from the state at the start of the step.
 
-    The step is a fixed fraction of the two-body dynamical time sqrt(r^3 / (m + m_other)), so it
-    shrinks as the bodies approach (where the force changes fastest) and scales with the system.
-    A spinning body also limits its step so it turns at most MAX_ROTATION_PER_STEP per step.
+    The step is a fixed fraction of the shorter of two timescales:
+    - the two-body dynamical time sqrt(r^3 / (m + m_other)), so it shrinks as the bodies approach
+      (where the force changes fastest) and scales with the system, and
+    - the crossing time r / |relative velocity|, so the bodies move only a small fraction of their
+      separation per step. Without it, bodies flying apart on an unbound path take steps that grow
+      faster than their separation, and time runs away to infinity within a few hundred steps.
+    For a circular orbit the two are equal. Both are symmetric in the two bodies, so both agents
+    choose the same step. A spinning body also limits its step so it turns at most
+    MAX_ROTATION_PER_STEP per step.
     """
-    r_self = vector(position)
-    r_other = vector(other_position)
-    r = np.linalg.norm(r_self - r_other)
-    step = TIMESTEP_FRACTION * np.sqrt(r**3 / (mass + m_other))
+    separation = np.linalg.norm(vector(position) - vector(other_position))
+    speed = np.linalg.norm(vector(velocity) - vector(other_velocity))
+    timescale = np.sqrt(separation**3 / (mass + m_other))
+    if speed > 0:
+        timescale = min(timescale, separation / speed)
+    step = TIMESTEP_FRACTION * timescale
     spin = np.linalg.norm(vector(angular_velocity))
     if spin > 0:
         step = min(step, MAX_ROTATION_PER_STEP / spin)
@@ -273,8 +281,10 @@ def rigid_body(other):
         {
             'consumed': f'''(
                 prev!(position),
+                prev!(velocity),
                 prev!(mass),
                 agent!({other}).position,
+                agent!({other}).velocity,
                 agent!({other}).mass,
                 prev!(angularVelocity),
             )''',

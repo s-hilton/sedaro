@@ -8,6 +8,7 @@ NOTE: Tests for the HTTP API, using an in-memory database. First build the `quer
 import io
 import os
 import unittest
+import unittest.mock
 
 os.environ["DATABASE_URL"] = "sqlite:///:memory:"
 
@@ -63,6 +64,18 @@ class ApiTest(unittest.TestCase):
     def test_orientation_defaults_to_simulation_axes(self):
         start = self.simulate(size=4).json[0][2]["Body2"]
         np.testing.assert_allclose([start["attitude"][a] for a in "wxyz"], [1, 0, 0, 0])
+
+    def test_bodies_at_same_position_rejected(self):
+        response = self.client.post("/simulation", json={"Body1": body(0, 0, 1), "Body2": body(0, 0.1, 1)})
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json["error"], "Body1 and Body2 start at the same position; move one of them.")
+
+    def test_failed_simulation_reports_why(self):
+        init = {"Body1": body(-0.73, -0.0015, 1), "Body2": body(60, 0.13, 0.12)}
+        with unittest.mock.patch("app.Simulator.simulate", side_effect=RuntimeError("steps stopped advancing")):
+            response = self.client.post("/simulation", json=init)
+        self.assertEqual(response.status_code, 422)
+        self.assertEqual(response.json["error"], "Simulation failed: steps stopped advancing")
 
     def test_invalid_inputs_rejected(self):
         self.assertEqual(self.simulate(size=-1).status_code, 400)

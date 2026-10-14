@@ -51,9 +51,9 @@ const ModelUpload: React.FC<ModelUploadProps> = ({ bodyName, mass, value, onChan
         const body = new FormData();
         body.append('file', file);
         const response = await fetch(`${API_URL}/models`, { method: 'POST', body });
-        const result = await response.json();
+        const result = await response.json().catch(() => ({}));
         if (!response.ok) {
-          throw new Error(result.error ?? 'Upload failed.');
+          throw new Error(result.error ?? `Upload failed (HTTP ${response.status}). Check that the backend is running.`);
         }
         const model = result as UploadedModel;
         // Start at the file's own size; the user rescales it to simulation units.
