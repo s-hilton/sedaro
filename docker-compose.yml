@@ -5,8 +5,13 @@ services:
     ports:
       - '3030:3030'
     environment:
-      # Where the web dev server forwards `/api` requests: the backend service on the compose network.
-      - API_URL=http://app:8000
+      # Where the web dev server forwards `/api` requests: the backend's published port on the Docker
+      # host. Going through the host rather than straight to the `app` container avoids
+      # container-to-container networking, which some Docker setups (e.g. GitHub Codespaces) block.
+      - API_URL=http://host.docker.internal:8000
+    extra_hosts:
+      # Defines host.docker.internal on Linux; Docker Desktop provides it already.
+      - 'host.docker.internal:host-gateway'
     volumes:
       - ./web/:/web/
       - /web/node_modules/
