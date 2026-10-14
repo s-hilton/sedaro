@@ -96,6 +96,7 @@ Here are some suggestions to get you thinking:
 │   ├── modsim.py             # Modeling and simulation functions (rigid-body gravity and rotation)
 │   ├── simulator.py          # Core simulation runtime
 │   ├── store.py              # In-memory stream data structure
+│   ├── test_app.py           # Tests for the HTTP API (`python3 -m unittest test_app`)
 │   ├── test_mesh.py          # Tests for mesh.py (`python3 -m unittest test_mesh`)
 │   └── test_rigid_body.py    # Tests for rigid-body dynamics (`python3 -m unittest test_rigid_body`)
 ├── queries                   # Query-parsing library (Rust)
@@ -107,7 +108,9 @@ Here are some suggestions to get you thinking:
     └── src
         ├── App.tsx           # View simulation results
         ├── ModelUpload.tsx   # Attach an STL model to a body
-        └── SimulateForm.tsx  # Define a simulation
+        ├── OrbitViewer.tsx   # Animated 3D view of a simulation (three.js)
+        ├── SimulateForm.tsx  # Define a simulation
+        └── simulation.ts     # Types of simulation results
 ```
 
 ### Tips
