@@ -51,7 +51,33 @@ class QRangeStore:
         if not ret:
             raise IndexError("Not found.")
         return ret
-    
+
+    def ending_at_or_after(self, key):
+        """
+        Return the values whose ranges satisfy `low < key <= high`, i.e. treating each range as
+        left-exclusive and right-inclusive. When consecutive ranges [t0, t1), [t1, t2), ... hold
+        the value reached at the *end* of each range, this is the value current at exactly `key`.
+        ```
+        0  1  2  3
+        [A   )[B   )
+              ^
+        ```
+        >>> store = QRangeStore()
+        >>> store[0, 2] = 'Record A'
+        >>> store[2, 4] = 'Record B'
+        >>> store.ending_at_or_after(2)
+        ['Record A']
+        >>> store.ending_at_or_after(2.0000001)
+        ['Record B']
+        >>> store.ending_at_or_after(0)
+        Traceback (most recent call last):
+        IndexError: Not found.
+        """
+        ret = [v for (l, h, v) in self.store if l < key <= h]
+        if not ret:
+            raise IndexError("Not found.")
+        return ret
+
     def __len__(self):
         return len(self.store)
 
