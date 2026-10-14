@@ -93,10 +93,11 @@ Here are some suggestions to get you thinking:
 ├── app                       # The backend (Python)
 │   ├── app.py                # Setup + API handling
 │   ├── mesh.py               # STL parsing + center of mass of uploaded CAD models
-│   ├── modsim.py             # Modeling and simulation functions
+│   ├── modsim.py             # Modeling and simulation functions (rigid-body gravity and rotation)
 │   ├── simulator.py          # Core simulation runtime
 │   ├── store.py              # In-memory stream data structure
-│   └── test_mesh.py          # Tests for mesh.py (`python3 -m unittest test_mesh`)
+│   ├── test_mesh.py          # Tests for mesh.py (`python3 -m unittest test_mesh`)
+│   └── test_rigid_body.py    # Tests for rigid-body dynamics (`python3 -m unittest test_rigid_body`)
 ├── queries                   # Query-parsing library (Rust)
 │   └── src
 │       ├── grammar.lalrpop   # The syntax definition

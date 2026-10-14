@@ -73,14 +73,20 @@ def check_closed(triangles: np.ndarray):
 
 def mass_properties(triangles: np.ndarray) -> dict:
     """
-    Compute the volume and center of mass of the solid enclosed by a closed triangle mesh, assuming
-    uniform density.
+    Compute the volume, center of mass, bounding-box dimensions and inertia tensor of the solid
+    enclosed by a closed triangle mesh, assuming uniform density.
 
     Each triangle and a reference point form a tetrahedron whose signed volume is
     dot(a, cross(b, c)) / 6 (with a, b, c relative to the reference point). The signed volumes sum
     to the enclosed volume, and the volume-weighted tetrahedron centroids average to the center of
-    mass. Using the mesh's mean vertex as the reference point limits round-off for models far from
-    the origin. An inside-out mesh gives a negative volume but the same center of mass.
+    mass. Each tetrahedron's second moment about the reference point is
+    V/20 * (aa' + bb' + cc' + ss') with s = a + b + c; their sum, shifted to the center of mass,
+    gives the inertia tensor. Using the mesh's mean vertex as the reference point limits round-off
+    for models far from the origin. An inside-out mesh gives a negative volume and negative moments,
+    which cancel, so the results are the same.
+
+    The inertia tensor is per unit mass (in length units squared), about the center of mass, along
+    the model's axes; multiply by the body's mass to get its inertia.
     """
     if len(triangles) < 4:
         raise MeshError('Mesh needs at least 4 triangles to enclose a volume.')
@@ -95,9 +101,33 @@ def mass_properties(triangles: np.ndarray) -> dict:
     extent = np.ptp(triangles.reshape(-1, 3), axis=0).max()
     if abs(volume) <= 1e-12 * extent**3:
         raise MeshError('Mesh encloses no volume.')
-    center = reference + (signed_volumes[:, None] * (a + b + c)).sum(axis=0) / (4 * volume)
+    s = a + b + c
+    offset = (signed_volumes[:, None] * s).sum(axis=0) / (4 * volume)
+    center = reference + offset
+    # Second moment of the solid about the reference point, then about the center of mass.
+    second_moment = np.einsum('i,ij,ik->jk', signed_volumes, a, a) + np.einsum('i,ij,ik->jk', signed_volumes, b, b) \
+        + np.einsum('i,ij,ik->jk', signed_volumes, c, c) + np.einsum('i,ij,ik->jk', signed_volumes, s, s)
+    second_moment = second_moment / 20 - volume * np.outer(offset, offset)
+    inertia = (np.trace(second_moment) * np.eye(3) - second_moment) / volume
+    dimensions = np.ptp(triangles.reshape(-1, 3), axis=0)
     return {
         'triangleCount': int(len(triangles)),
         'volume': float(abs(volume)),
         'centerOfMass': {axis: float(v) for axis, v in zip('xyz', center)},
+        'dimensions': {axis: float(v) for axis, v in zip('xyz', dimensions)},
+        'inertiaPerUnitMass': inertia_to_dict(inertia),
     }
+
+
+INERTIA_KEYS = ('xx', 'yy', 'zz', 'xy', 'xz', 'yz')
+
+
+def inertia_to_dict(inertia: np.ndarray) -> dict:
+    """Store a symmetric inertia tensor as its six independent components."""
+    index = {'x': 0, 'y': 1, 'z': 2}
+    return {k: float(inertia[index[k[0]], index[k[1]]]) for k in INERTIA_KEYS}
+
+
+def inertia_from_dict(components: dict) -> np.ndarray:
+    xx, yy, zz, xy, xz, yz = (components[k] for k in INERTIA_KEYS)
+    return np.array([[xx, xy, xz], [xy, yy, yz], [xz, yz, zz]], dtype=float)

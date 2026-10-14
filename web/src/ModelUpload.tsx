@@ -1,25 +1,39 @@
-import { Button, Flex, Text } from '@radix-ui/themes';
+import { Button, Flex, Text, TextField } from '@radix-ui/themes';
 import React, { useCallback, useId, useRef, useState } from 'react';
 
-// Mass properties of an uploaded CAD model, as returned by `POST /models`.
+type Vector = { x: number; y: number; z: number };
+type FormValue = number | '';
+
+// Mass properties of an uploaded CAD model in its own (unitless) STL coordinates, as returned by
+// `POST /models`.
 export interface UploadedModel {
   id: number;
   filename: string;
   triangleCount: number;
   volume: number;
-  centerOfMass: { x: number; y: number; z: number };
+  centerOfMass: Vector;
+  dimensions: Vector;
+}
+
+// A model attached to a body, with how it should be sized and spun in the simulation.
+export interface BodyModel {
+  model: UploadedModel;
+  size: FormValue; // longest dimension, in simulation length units
+  angularVelocity: { x: FormValue; y: FormValue; z: FormValue }; // body frame, radians per time unit
 }
 
 interface ModelUploadProps {
   bodyName: string;
-  mass: number | '';
-  model: UploadedModel | null;
-  onChange: (model: UploadedModel | null) => void;
+  mass: FormValue;
+  value: BodyModel | null;
+  onChange: (value: BodyModel | null) => void;
 }
 
-const formatNumber = (n: number) => Number(n.toPrecision(6)).toString();
+const formatNumber = (n: number) => Number(n.toPrecision(4)).toString();
+const longestDimension = (model: UploadedModel) => Math.max(model.dimensions.x, model.dimensions.y, model.dimensions.z);
+const parse = (value: string): FormValue => (value === '' ? '' : parseFloat(value));
 
-const ModelUpload: React.FC<ModelUploadProps> = ({ bodyName, mass, model, onChange }) => {
+const ModelUpload: React.FC<ModelUploadProps> = ({ bodyName, mass, value, onChange }) => {
   const inputId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -39,7 +53,9 @@ const ModelUpload: React.FC<ModelUploadProps> = ({ bodyName, mass, model, onChan
         if (!response.ok) {
           throw new Error(result.error ?? 'Upload failed.');
         }
-        onChange(result as UploadedModel);
+        const model = result as UploadedModel;
+        // Start at the file's own size; the user rescales it to simulation units.
+        onChange({ model, size: longestDimension(model), angularVelocity: { x: 0, y: 0, z: 0 } });
       } catch (err) {
         onChange(null);
         setError(err instanceof Error ? err.message : 'Upload failed.');
@@ -57,6 +73,8 @@ const ModelUpload: React.FC<ModelUploadProps> = ({ bodyName, mass, model, onChan
     onChange(null);
   }, [onChange]);
 
+  const scale = value && typeof value.size === 'number' && value.size > 0 ? value.size / longestDimension(value.model) : null;
+
   return (
     <Flex direction="column" gap="1" mb="2">
       <label htmlFor={inputId}>
@@ -72,34 +90,68 @@ const ModelUpload: React.FC<ModelUploadProps> = ({ bodyName, mass, model, onChan
         aria-describedby={`${inputId}-status`}
       />
       <div id={`${inputId}-status`} aria-live="polite">
-        {uploading && <Text size="1">Computing center of mass…</Text>}
+        {uploading && <Text size="1">Computing mass properties…</Text>}
         {error && (
           <Text size="1" color="red" role="alert">
             {error}
           </Text>
         )}
-        {model && (
-          <Flex direction="column">
-            <Text size="1">
-              {model.filename}: {model.triangleCount.toLocaleString()} triangles, volume{' '}
-              {formatNumber(model.volume)}
-              {typeof mass === 'number' && mass > 0 && <>, density {formatNumber(mass / model.volume)}</>}
-            </Text>
-            <Text size="1">
-              Center of mass in model coordinates: ({formatNumber(model.centerOfMass.x)},{' '}
-              {formatNumber(model.centerOfMass.y)}, {formatNumber(model.centerOfMass.z)})
-            </Text>
-            <Text size="1" color="gray">
-              {bodyName}'s position below places the model's origin; it is simulated at its center of mass.
-            </Text>
-            <Flex>
-              <Button type="button" size="1" variant="soft" mt="1" onClick={handleRemove}>
-                Remove model
-              </Button>
-            </Flex>
-          </Flex>
-        )}
       </div>
+      {value && (
+        <Flex direction="column" gap="1">
+          <Text size="1">
+            {value.model.filename}: {value.model.triangleCount.toLocaleString()} triangles,{' '}
+            {formatNumber(value.model.dimensions.x)} × {formatNumber(value.model.dimensions.y)} ×{' '}
+            {formatNumber(value.model.dimensions.z)} in file units
+          </Text>
+          <label htmlFor={`${inputId}-size`}>
+            <Text size="2">Size: longest dimension in simulation units</Text>
+          </label>
+          <TextField.Root
+            id={`${inputId}-size`}
+            type="number"
+            min="0"
+            step="any"
+            required
+            value={value.size}
+            onChange={(e) => onChange({ ...value, size: parse(e.target.value) })}
+          />
+          {scale !== null && (
+            <Text size="1">
+              Simulated as {formatNumber(scale * value.model.dimensions.x)} × {formatNumber(scale * value.model.dimensions.y)} ×{' '}
+              {formatNumber(scale * value.model.dimensions.z)}, volume {formatNumber(scale ** 3 * value.model.volume)}
+              {typeof mass === 'number' && mass > 0 && <>, density {formatNumber(mass / (scale ** 3 * value.model.volume))}</>}.
+              Center of mass is ({formatNumber(scale * value.model.centerOfMass.x)}, {formatNumber(scale * value.model.centerOfMass.y)},{' '}
+              {formatNumber(scale * value.model.centerOfMass.z)}) from the model origin.
+            </Text>
+          )}
+          <Text size="2">Initial angular velocity (model axes, radians per time unit)</Text>
+          <Flex gap="2">
+            {(['x', 'y', 'z'] as const).map((axis) => (
+              <TextField.Root
+                key={axis}
+                type="number"
+                step="any"
+                required
+                aria-label={`${bodyName} initial angular velocity about model ${axis}-axis`}
+                value={value.angularVelocity[axis]}
+                onChange={(e) => onChange({ ...value, angularVelocity: { ...value.angularVelocity, [axis]: parse(e.target.value) } })}
+              >
+                <TextField.Slot>{axis}</TextField.Slot>
+              </TextField.Root>
+            ))}
+          </Flex>
+          <Text size="1" color="gray">
+            {bodyName} is a uniform-density rigid body. The position below places the model's origin, with its axes along
+            the simulation axes; its shape affects its gravity and makes it rotate.
+          </Text>
+          <Flex>
+            <Button type="button" size="1" variant="soft" onClick={handleRemove}>
+              Remove model
+            </Button>
+          </Flex>
+        </Flex>
+      )}
     </Flex>
   );
 };

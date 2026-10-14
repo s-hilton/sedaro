@@ -9,7 +9,7 @@ import unittest
 
 import numpy as np
 
-from mesh import MeshError, mass_properties, parse_stl
+from mesh import MeshError, inertia_from_dict, mass_properties, parse_stl
 
 
 def box(lo, hi):
@@ -81,11 +81,29 @@ class MassPropertiesTest(unittest.TestCase):
         self.assertAlmostEqual(props['volume'], 3.0)
         self.assertVector(props['centerOfMass'], [(0.5 + 1.5 + 0.5) / 3, 0.5, (0.5 + 0.5 + 1.5) / 3])
 
+    def test_box_inertia_and_dimensions(self):
+        # Solid box a x b x c: I/m = diag(b^2 + c^2, a^2 + c^2, a^2 + b^2) / 12 about its center.
+        props = mass_properties(box((5, -1, 2), (6, 1, 5)))
+        self.assertVector(props['dimensions'], [1, 2, 3])
+        np.testing.assert_allclose(inertia_from_dict(props['inertiaPerUnitMass']),
+                                   np.diag([4 + 9, 1 + 9, 1 + 4]) / 12, atol=1e-12)
+
+    def test_l_shape_inertia_matches_parallel_axis_sum(self):
+        # Three unit cubes, each I/m = 1/6 about its own center, shifted to the overall center of mass.
+        centers = np.array([[0.5, 0.5, 0.5], [1.5, 0.5, 0.5], [0.5, 0.5, 1.5]])
+        com = centers.mean(axis=0)
+        expected = sum(np.eye(3) / 6 + (d @ d) * np.eye(3) - np.outer(d, d) for d in centers - com) / 3
+        props = mass_properties(l_shape())
+        np.testing.assert_allclose(inertia_from_dict(props['inertiaPerUnitMass']), expected, atol=1e-12)
+        self.assertAlmostEqual(props['inertiaPerUnitMass']['xz'], 1 / 9)
+
     def test_inside_out_mesh_has_same_center(self):
         flipped = box((0, 0, 0), (2, 1, 1))[:, ::-1]
         props = mass_properties(flipped)
         self.assertAlmostEqual(props['volume'], 2.0)
         self.assertVector(props['centerOfMass'], [1, 0.5, 0.5])
+        np.testing.assert_allclose(inertia_from_dict(props['inertiaPerUnitMass']),
+                                   inertia_from_dict(mass_properties(box((0, 0, 0), (2, 1, 1)))['inertiaPerUnitMass']), atol=1e-12)
 
     def test_far_from_origin(self):
         props = mass_properties(box((1e6, 1e6, 1e6), (1e6 + 1, 1e6 + 1, 1e6 + 1)))
