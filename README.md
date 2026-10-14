@@ -85,6 +85,7 @@ Here are some suggestions to get you thinking:
 3. That's it ✅! Sedaro Nano should now be available via web browser at http://localhost:3030/. The API is running at http://localhost:8000/.
    - It may take a few moments for the container to fully come up and serve the page.
    - Changes to both the React app and the Flask app should auto reload.
+   - The web app reaches the API through its own dev server (requests to `/api/*` are forwarded to the backend), so it also works when opened from another address, such as a forwarded port in GitHub Codespaces. Only port `3030` needs to be open in the browser.
 
 ### Directory Structure
 ```sh

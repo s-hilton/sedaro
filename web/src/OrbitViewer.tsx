@@ -3,6 +3,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { DataPoint, Quaternion, Vector } from 'simulation';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { API_URL } from 'api';
 
 // Matches Plotly's default trace colors, so bodies look the same as in the plots.
 const COLORS = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728'];
@@ -51,7 +52,7 @@ function sample(track: Track, t: number, position: THREE.Vector3, attitude: THRE
 // Geometry of a model's mesh (stored relative to its center of mass), scaled to simulation units.
 // Models uploaded before meshes were stored fall back to their bounding box.
 async function loadModelGeometry(model: NonNullable<Track['model']>): Promise<THREE.BufferGeometry> {
-  const response = await fetch(`http://localhost:8000/models/${model.id}/mesh`);
+  const response = await fetch(`${API_URL}/models/${model.id}/mesh`);
   if (!response.ok) {
     return new THREE.BoxGeometry(model.dimensions.x, model.dimensions.y, model.dimensions.z);
   }

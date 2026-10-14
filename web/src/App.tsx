@@ -6,6 +6,7 @@ import { Routes } from 'routes';
 
 import { DataFrame, DataPoint } from 'simulation';
 import OrbitViewer from './OrbitViewer';
+import { API_URL } from 'api';
 
 // Output data to the plot
 type PlottedAgentData = Record<string, number[]>;
@@ -31,7 +32,7 @@ const App = () => {
 
       try {
         // data should be populated from a POST call to the simulation server
-        const response = await fetch('http://localhost:8000/simulation');
+        const response = await fetch(`${API_URL}/simulation`);
         if (canceled) return;
         const data: DataPoint[] = await response.json();
         const updatedPositionData: PlottedFrame = {};
