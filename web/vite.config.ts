@@ -11,8 +11,8 @@ export default defineConfig({
     host: true,
     port: 3030,
     // The frontend calls the API at `/api/*` on its own origin and this dev server forwards it to the
-    // backend, so the browser never makes a cross-origin request. In Docker Compose the backend is
-    // the `app` service (API_URL is set there); otherwise it is on this machine.
+    // backend, so the browser never makes a cross-origin request. Docker Compose sets API_URL to
+    // reach the backend through the Docker host; otherwise it is on this machine.
     proxy: {
       '/api': {
         target: process.env.API_URL ?? 'http://localhost:8000',
