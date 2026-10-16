@@ -41,10 +41,14 @@ const ModelUpload: React.FC<ModelUploadProps> = ({ bodyName, mass, value, onChan
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleFile = useCallback(
-    async (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (!file) return;
+  const [dragging, setDragging] = useState(false);
+
+  const uploadFile = useCallback(
+    async (file: File) => {
+      if (!file.name.toLowerCase().endsWith('.stl')) {
+        setError(`${file.name} is not an STL file. Drop or choose a file ending in .stl.`);
+        return;
+      }
       setUploading(true);
       setError(null);
       try {
@@ -75,6 +79,40 @@ const ModelUpload: React.FC<ModelUploadProps> = ({ bodyName, mass, value, onChan
     [onChange]
   );
 
+  const handleFile = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (file) uploadFile(file);
+    },
+    [uploadFile]
+  );
+
+  // Drag and drop: the zone accepts files dragged in from the computer, highlighted while hovered.
+  const handleDragOver = useCallback(
+    (e: React.DragEvent) => {
+      if (!e.dataTransfer.types.includes('Files')) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = uploading ? 'none' : 'copy';
+      setDragging(true);
+    },
+    [uploading]
+  );
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    // Moving between children of the zone also fires dragleave; only clear when leaving the zone.
+    if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDragging(false);
+  }, []);
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      setDragging(false);
+      const file = e.dataTransfer.files[0];
+      if (file && !uploading) uploadFile(file);
+    },
+    [uploadFile, uploading]
+  );
+
   const handleRemove = useCallback(() => {
     setError(null);
     onChange(null);
@@ -87,15 +125,36 @@ const ModelUpload: React.FC<ModelUploadProps> = ({ bodyName, mass, value, onChan
       <label htmlFor={inputId}>
         <Text size="2">CAD model (STL, optional)</Text>
       </label>
-      <input
-        id={inputId}
-        ref={inputRef}
-        type="file"
-        accept=".stl,model/stl"
-        onChange={handleFile}
-        disabled={uploading}
-        aria-describedby={`${inputId}-status`}
-      />
+      <div
+        data-testid={`${bodyName}-drop-zone`}
+        onDragEnter={handleDragOver}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 6,
+          padding: 12,
+          borderRadius: 'var(--radius-3)',
+          border: `2px dashed ${dragging ? 'var(--accent-9)' : 'var(--gray-7)'}`,
+          background: dragging ? 'var(--accent-a3)' : 'transparent',
+          transition: 'background 120ms, border-color 120ms',
+        }}
+      >
+        <Text size="1" color="gray">
+          {dragging ? `Drop to attach it to ${bodyName}` : 'Drag an STL file here, or choose one:'}
+        </Text>
+        <input
+          id={inputId}
+          ref={inputRef}
+          type="file"
+          accept=".stl,model/stl"
+          onChange={handleFile}
+          disabled={uploading}
+          aria-describedby={`${inputId}-status`}
+        />
+      </div>
       <div id={`${inputId}-status`} aria-live="polite">
         {uploading && <Text size="1">Computing mass properties…</Text>}
         {error && (

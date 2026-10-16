@@ -1,7 +1,7 @@
 import { Form, FormField, FormLabel } from '@radix-ui/react-form';
 import { Button, Card, Flex, Heading, Separator, Text, TextField } from '@radix-ui/themes';
 import _ from 'lodash';
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Routes } from 'routes';
 import ModelUpload, { BodyModel } from './ModelUpload';
@@ -58,6 +58,19 @@ const SimulateForm: React.FC = () => {
   }, []);
 
   const [submitting, setSubmitting] = useState(false);
+
+  // A file dropped outside the drop zones would otherwise make the browser open it, leaving the form.
+  useEffect(() => {
+    const ignoreFileDrop = (e: DragEvent) => {
+      if (e.dataTransfer?.types.includes('Files')) e.preventDefault();
+    };
+    window.addEventListener('dragover', ignoreFileDrop);
+    window.addEventListener('drop', ignoreFileDrop);
+    return () => {
+      window.removeEventListener('dragover', ignoreFileDrop);
+      window.removeEventListener('drop', ignoreFileDrop);
+    };
+  }, []);
 
   // The form blocks submission while any field is empty or invalid, without saying so. Name the
   // fields instead, so a click on Submit never silently does nothing.
